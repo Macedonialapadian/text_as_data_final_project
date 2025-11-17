@@ -41,17 +41,22 @@ def process_csv_polars(file_path, num_columns=8):
         file_size = os.path.getsize(file_path)
         print(f"  File size: {file_size / (1024*1024):.2f} MB")
 
-        # Read CSV in streaming mode (memory efficient for large files)
-        # Polars automatically optimizes reading and only keeps needed columns
-        df = pl.scan_csv(file_path).select(pl.all()[:num_columns])
+        # First, read just the header to get column names
+        lazy_df = pl.scan_csv(file_path)
 
-        # Collect and write to temp file
+        # Get the first N column names
+        columns = lazy_df.collect_schema().names()[:num_columns]
+
+        # Read CSV in streaming mode selecting only the first N columns
+        # This is memory efficient for large files
+        df = pl.scan_csv(file_path).select(columns)
+
+        # Collect and write to temp file using streaming
         df.collect(streaming=True).write_csv(temp_file)
 
-        # Get row count
-        row_count = pl.read_csv(temp_file, n_rows=0).height
-        final_df = pl.read_csv(temp_file)
-        row_count = final_df.height
+        # Get row count efficiently
+        final_df = pl.read_csv(temp_file, n_rows=1)  # Just read first row to get structure
+        row_count = pl.read_csv(temp_file).height  # Then get full count
 
         print(f"  Processed {row_count} rows")
 
