@@ -1,6 +1,11 @@
-# CSV Processing Script - High Performance Edition
+# CSV Processing Scripts - High Performance Edition
 
-This script processes CSV files in `dataverse_files/xdata/` to keep only the first 8 columns using optimized libraries.
+Two scripts for processing and combining CSV files in `dataverse_files/xdata/` using optimized libraries.
+
+## Scripts
+
+1. **`process_csv_files.py`** - Trim CSV files to first 8 columns
+2. **`combine_csv_files.py`** - Combine all processed CSV files into one
 
 ## Features
 
@@ -35,6 +40,8 @@ pip install -r requirements.txt
 
 ## Usage
 
+### Step 1: Process CSV Files (Trim to 8 columns)
+
 1. **Install dependencies**:
    ```bash
    pip install polars
@@ -49,15 +56,26 @@ pip install -r requirements.txt
    # (Download or move them to dataverse_files/xdata/)
    ```
 
-3. **Run the script**:
+3. **Run the processing script**:
    ```bash
    python3 process_csv_files.py
    ```
 
-   Or if you made it executable:
-   ```bash
-   ./process_csv_files.py
-   ```
+   This will trim all CSV files to keep only the first 8 columns.
+
+### Step 2: Combine All CSV Files (Optional)
+
+After processing, you can combine all CSV files into one:
+
+```bash
+python3 combine_csv_files.py
+```
+
+This will:
+- Read all CSV files from `dataverse_files/xdata/`
+- Combine them into a single file: `dataverse_files/combined_data.csv`
+- Process files one-by-one to minimize memory usage
+- Show progress and total row count
 
 ## What It Does
 
