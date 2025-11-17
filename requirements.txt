@@ -1,8 +1,0 @@
-# CSV Processing Requirements
-# Install with: pip install -r requirements.txt
-
-# Recommended: Polars (fastest, most memory-efficient)
-polars>=0.19.0
-
-# Alternative: Pandas (if you prefer)
-# pandas>=2.0.0

@@ -1,0 +1,10 @@
+---
+title: "final_project"
+author: "chris"
+format: html
+editor: visual
+---
+
+```{r}
+1 + 1
+```
