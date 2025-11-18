@@ -134,9 +134,9 @@ def extract_urls_pandas(input_file, output_file):
 
 
 def main():
-    # CONFIGURE THESE PATHS based on your repository structure
-    input_file = Path("combined_data.csv")  # UPDATE THIS PATH
-    output_file = Path("urls_extracted.csv")  # UPDATE THIS PATH
+    # Path to combined data file (output from combine_csv_files.py)
+    input_file = Path("dataverse_files/combined_data.csv")
+    output_file = Path("dataverse_files/urls_extracted.csv")
 
     # Check if input file exists
     if not input_file.exists():
