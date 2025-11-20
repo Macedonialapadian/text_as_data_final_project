@@ -26,13 +26,13 @@ SB <- seleniumbase$SB
 ################################################################################
 
 read_urls_from_file <- function(file_path) {
-  # Read file where each row has URLs/numbers separated by commas
+  # Read file where each row has URLs/numbers separated by commas or spaces
   lines <- readLines(file_path)
 
   # Parse all URLs
   all_urls <- unlist(lapply(lines, function(line) {
-    # Split by comma and trim whitespace
-    urls <- strsplit(line, ",")[[1]]
+    # Split by comma, space, or both
+    urls <- strsplit(line, "[,\\s]+")[[1]]
     trimws(urls)
   }))
 
