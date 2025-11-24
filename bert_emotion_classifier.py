@@ -1,8 +1,10 @@
 """
-BERT Fine-tuning Script for Emotion Extremeness Classification
+BERT Fine-tuning Script for Emotion Extremeness Regression
 
-This script fine-tunes a pre-trained BERT model on labeled text data
-to classify emotion extremeness in social media posts.
+This script fine-tunes a pre-trained BERT model on Best-Worst Scaling (BWS)
+labeled data to predict continuous emotion extremeness scores (0.0 to 1.0).
+
+BWS Score Formula: (% Selected Best - % Selected Worst) / Total Appearances
 
 Usage:
     python bert_emotion_classifier.py --train data.csv --output ./model
@@ -21,7 +23,8 @@ from transformers import (
     get_linear_schedule_with_warmup
 )
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from scipy.stats import pearsonr
 from tqdm import tqdm
 import os
 import json
@@ -31,7 +34,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class EmotionDataset(Dataset):
-    """Custom Dataset for emotion classification."""
+    """Custom Dataset for emotion regression."""
 
     def __init__(self, texts, labels, tokenizer, max_length=128):
         self.texts = texts
@@ -59,57 +62,48 @@ class EmotionDataset(Dataset):
         return {
             'input_ids': encoding['input_ids'].flatten(),
             'attention_mask': encoding['attention_mask'].flatten(),
-            'labels': torch.tensor(label, dtype=torch.long)
+            'labels': torch.tensor(label, dtype=torch.float)  # Float for regression
         }
 
 
-class BERTEmotionClassifier:
-    """BERT-based classifier for emotion extremeness."""
+class BERTEmotionRegressor:
+    """BERT-based regressor for emotion extremeness using BWS scores."""
 
-    def __init__(self, num_labels=5, model_name='bert-base-uncased'):
+    def __init__(self, model_name='bert-base-uncased'):
         """
-        Initialize the classifier.
+        Initialize the regressor.
 
         Args:
-            num_labels: Number of emotion extremeness levels (default 5: 1-5 scale)
             model_name: Pre-trained BERT model to use
         """
         self.model_name = model_name
-        self.num_labels = num_labels
         self.tokenizer = BertTokenizer.from_pretrained(model_name)
         self.model = None
-        self.label_map = None
 
-    def prepare_data(self, df, text_col='text', label_col='emotion_score'):
+    def prepare_data(self, df, text_col='text', label_col='extremeness_score'):
         """
         Prepare data for training.
 
         Args:
-            df: DataFrame with text and labels
+            df: DataFrame with text and BWS scores (0.0 to 1.0)
             text_col: Name of text column
-            label_col: Name of label column
+            label_col: Name of label column (continuous scores)
 
         Returns:
             train_loader, val_loader
         """
         texts = df[text_col].values
-        labels = df[label_col].values
+        labels = df[label_col].values.astype(np.float32)
 
-        # Create label mapping if labels are not numeric
-        if not np.issubdtype(labels.dtype, np.number):
-            unique_labels = sorted(set(labels))
-            self.label_map = {label: i for i, label in enumerate(unique_labels)}
-            labels = np.array([self.label_map[l] for l in labels])
-            self.num_labels = len(unique_labels)
-        else:
-            # Assume labels are 1-indexed scores, convert to 0-indexed
-            if labels.min() > 0:
-                labels = labels - labels.min()
-            self.num_labels = len(set(labels))
+        # Validate scores are in [0, 1] range
+        if labels.min() < 0 or labels.max() > 1:
+            print(f"Warning: Scores outside [0,1] range. Min: {labels.min()}, Max: {labels.max()}")
+            print("Normalizing to [0, 1]...")
+            labels = (labels - labels.min()) / (labels.max() - labels.min())
 
         # Split data
         train_texts, val_texts, train_labels, val_labels = train_test_split(
-            texts, labels, test_size=0.2, random_state=42, stratify=labels
+            texts, labels, test_size=0.2, random_state=42
         )
 
         # Create datasets
@@ -132,7 +126,7 @@ class BERTEmotionClassifier:
 
     def train(self, train_loader, val_loader, epochs=3, learning_rate=2e-5):
         """
-        Train the BERT model.
+        Train the BERT regression model.
 
         Args:
             train_loader: Training data loader
@@ -140,10 +134,11 @@ class BERTEmotionClassifier:
             epochs: Number of training epochs
             learning_rate: Learning rate for optimizer
         """
-        # Initialize model
+        # Initialize model with num_labels=1 for REGRESSION
+        # This automatically uses MSELoss instead of CrossEntropyLoss
         self.model = BertForSequenceClassification.from_pretrained(
             self.model_name,
-            num_labels=self.num_labels
+            num_labels=1  # Single output for regression
         )
         self.model.to(device)
 
@@ -157,7 +152,7 @@ class BERTEmotionClassifier:
         )
 
         # Training loop
-        best_val_accuracy = 0
+        best_val_mse = float('inf')
 
         for epoch in range(epochs):
             print(f'\nEpoch {epoch + 1}/{epochs}')
@@ -172,7 +167,7 @@ class BERTEmotionClassifier:
 
                 input_ids = batch['input_ids'].to(device)
                 attention_mask = batch['attention_mask'].to(device)
-                labels = batch['labels'].to(device)
+                labels = batch['labels'].to(device).unsqueeze(1)  # Shape: (batch, 1)
 
                 outputs = self.model(
                     input_ids=input_ids,
@@ -189,18 +184,21 @@ class BERTEmotionClassifier:
                 scheduler.step()
 
             avg_train_loss = total_loss / len(train_loader)
-            print(f'Average training loss: {avg_train_loss:.4f}')
+            print(f'Average training loss (MSE): {avg_train_loss:.4f}')
 
             # Validation
-            val_accuracy, val_report = self.evaluate(val_loader)
-            print(f'Validation accuracy: {val_accuracy:.4f}')
+            val_metrics = self.evaluate(val_loader)
+            print(f'Validation MSE: {val_metrics["mse"]:.4f}')
+            print(f'Validation MAE: {val_metrics["mae"]:.4f}')
+            print(f'Validation R²: {val_metrics["r2"]:.4f}')
+            print(f'Pearson r: {val_metrics["pearson_r"]:.4f}')
 
-            if val_accuracy > best_val_accuracy:
-                best_val_accuracy = val_accuracy
+            if val_metrics["mse"] < best_val_mse:
+                best_val_mse = val_metrics["mse"]
                 print('New best model!')
 
-        print(f'\nBest validation accuracy: {best_val_accuracy:.4f}')
-        return best_val_accuracy
+        print(f'\nBest validation MSE: {best_val_mse:.4f}')
+        return best_val_mse
 
     def evaluate(self, data_loader):
         """Evaluate the model on a dataset."""
@@ -219,24 +217,41 @@ class BERTEmotionClassifier:
                     attention_mask=attention_mask
                 )
 
-                preds = torch.argmax(outputs.logits, dim=1)
-                predictions.extend(preds.cpu().numpy())
+                # For regression, logits IS the predicted score
+                preds = outputs.logits.squeeze().cpu().numpy()
+                if preds.ndim == 0:
+                    preds = [preds.item()]
+                predictions.extend(preds)
                 true_labels.extend(labels.cpu().numpy())
 
-        accuracy = accuracy_score(true_labels, predictions)
-        report = classification_report(true_labels, predictions)
+        predictions = np.array(predictions)
+        true_labels = np.array(true_labels)
 
-        return accuracy, report
+        # Clip predictions to [0, 1] range
+        predictions = np.clip(predictions, 0, 1)
+
+        # Calculate metrics
+        mse = mean_squared_error(true_labels, predictions)
+        mae = mean_absolute_error(true_labels, predictions)
+        r2 = r2_score(true_labels, predictions)
+        pearson_r, _ = pearsonr(true_labels, predictions)
+
+        return {
+            'mse': mse,
+            'mae': mae,
+            'r2': r2,
+            'pearson_r': pearson_r
+        }
 
     def predict(self, texts):
         """
-        Predict emotion extremeness for new texts.
+        Predict emotion extremeness score for new texts.
 
         Args:
             texts: Single text string or list of texts
 
         Returns:
-            List of predictions (scores)
+            Continuous scores between 0.0 and 1.0
         """
         if self.model is None:
             raise ValueError("Model not trained or loaded. Train or load a model first.")
@@ -267,17 +282,11 @@ class BERTEmotionClassifier:
                     attention_mask=attention_mask
                 )
 
-                pred = torch.argmax(outputs.logits, dim=1).item()
-
-                # Convert back to original label if mapping exists
-                if self.label_map:
-                    reverse_map = {v: k for k, v in self.label_map.items()}
-                    pred = reverse_map[pred]
-                else:
-                    # Add back the offset if labels were 1-indexed
-                    pred = pred + 1
-
-                predictions.append(pred)
+                # The logit IS the extremeness score for regression
+                score = outputs.logits.item()
+                # Clip to valid range
+                score = max(0.0, min(1.0, score))
+                predictions.append(round(score, 3))
 
         return predictions[0] if len(predictions) == 1 else predictions
 
@@ -289,28 +298,19 @@ class BERTEmotionClassifier:
         self.model.save_pretrained(output_dir)
         self.tokenizer.save_pretrained(output_dir)
 
-        # Save label map and config
+        # Save config
         config = {
-            'num_labels': self.num_labels,
-            'label_map': self.label_map,
-            'model_name': self.model_name
+            'model_name': self.model_name,
+            'task': 'regression',
+            'num_labels': 1
         }
-        with open(os.path.join(output_dir, 'classifier_config.json'), 'w') as f:
+        with open(os.path.join(output_dir, 'regressor_config.json'), 'w') as f:
             json.dump(config, f)
 
         print(f'Model saved to {output_dir}')
 
     def load_model(self, model_dir):
         """Load model from directory."""
-        # Load config
-        config_path = os.path.join(model_dir, 'classifier_config.json')
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-            self.num_labels = config['num_labels']
-            self.label_map = config['label_map']
-            self.model_name = config['model_name']
-
         self.tokenizer = BertTokenizer.from_pretrained(model_dir)
         self.model = BertForSequenceClassification.from_pretrained(model_dir)
         self.model.to(device)
@@ -319,47 +319,62 @@ class BERTEmotionClassifier:
 
 
 def create_example_dataset():
-    """Create example dataset for demonstration."""
+    """
+    Create example dataset with BWS-style continuous scores.
+
+    In real BWS, scores are calculated as:
+    Score = (% Selected Best - % Selected Worst) / Total Appearances
+
+    This produces values roughly in [-1, 1], normalized to [0, 1].
+    """
     np.random.seed(42)
 
-    # Example tweets with varying emotion levels
+    # Example tweets with BWS-style continuous scores (0.0 = least extreme, 1.0 = most extreme)
     examples = [
-        # Low emotion (1-2)
-        ("Just published a new report on infrastructure spending.", 1),
-        ("Meeting with constituents today to discuss local issues.", 1),
-        ("The committee will review the proposal next week.", 1),
-        ("Voted on the budget amendment this afternoon.", 2),
-        ("Pleased to announce new funding for schools.", 2),
+        # Low emotion (0.0 - 0.3)
+        ("Just published a new report on infrastructure spending.", 0.05),
+        ("Meeting with constituents today to discuss local issues.", 0.08),
+        ("The committee will review the proposal next week.", 0.10),
+        ("Voted on the budget amendment this afternoon.", 0.15),
+        ("Pleased to announce new funding for schools.", 0.22),
+        ("Looking forward to working across the aisle.", 0.18),
+        ("Thank you to everyone who attended the town hall.", 0.12),
 
-        # Medium emotion (3)
-        ("We must do better for working families!", 3),
-        ("This is an important step forward for our state.", 3),
-        ("I strongly support this bipartisan effort.", 3),
-        ("Our veterans deserve better healthcare options.", 3),
-        ("Education funding should be a top priority.", 3),
+        # Medium emotion (0.3 - 0.6)
+        ("We must do better for working families!", 0.45),
+        ("This is an important step forward for our state.", 0.38),
+        ("I strongly support this bipartisan effort.", 0.42),
+        ("Our veterans deserve better healthcare options.", 0.48),
+        ("Education funding should be a top priority.", 0.40),
+        ("We cannot let this opportunity pass us by.", 0.52),
+        ("Time to stand up for what's right!", 0.55),
 
-        # High emotion (4-5)
-        ("This is a COMPLETE disaster for American workers!", 4),
-        ("Absolutely unacceptable! We need action NOW!", 4),
-        ("The other side has FAILED our country!", 5),
-        ("This is the WORST decision in decades!", 5),
-        ("OUTRAGEOUS! They are destroying our democracy!", 5),
+        # High emotion (0.6 - 1.0)
+        ("This is a COMPLETE disaster for American workers!", 0.78),
+        ("Absolutely unacceptable! We need action NOW!", 0.82),
+        ("The other side has FAILED our country!", 0.88),
+        ("This is the WORST decision in decades!", 0.91),
+        ("OUTRAGEOUS! They are destroying our democracy!", 0.95),
+        ("This is an absolute betrayal of the American people!", 0.93),
+        ("UNBELIEVABLE! How can they get away with this?!", 0.89),
     ]
 
-    # Expand dataset by slight variations
+    # Expand dataset with variations
     expanded = []
     for text, score in examples:
         expanded.append((text, score))
-        # Add variations
-        expanded.append((text.lower(), score))
-        expanded.append((text.upper() if score >= 4 else text, score))
+        # Add lowercase variation with slight score adjustment
+        expanded.append((text.lower(), score - 0.02 if score > 0.5 else score))
+        # Add exclamation emphasis for high scores
+        if score > 0.6:
+            expanded.append((text.upper(), min(1.0, score + 0.03)))
 
-    df = pd.DataFrame(expanded, columns=['text', 'emotion_score'])
+    df = pd.DataFrame(expanded, columns=['text', 'extremeness_score'])
     return df
 
 
 def main():
-    parser = argparse.ArgumentParser(description='BERT Emotion Classifier')
+    parser = argparse.ArgumentParser(description='BERT Emotion Extremeness Regressor')
     parser.add_argument('--train', type=str, help='Path to training CSV file')
     parser.add_argument('--predict', type=str, help='Text to predict')
     parser.add_argument('--model', type=str, default='./emotion_model',
@@ -367,14 +382,14 @@ def main():
     parser.add_argument('--epochs', type=int, default=3, help='Training epochs')
     parser.add_argument('--text-col', type=str, default='text',
                         help='Name of text column in CSV')
-    parser.add_argument('--label-col', type=str, default='emotion_score',
-                        help='Name of label column in CSV')
+    parser.add_argument('--label-col', type=str, default='extremeness_score',
+                        help='Name of BWS score column in CSV (values 0.0-1.0)')
     parser.add_argument('--use-example', action='store_true',
                         help='Use example dataset for demonstration')
 
     args = parser.parse_args()
 
-    classifier = BERTEmotionClassifier()
+    regressor = BERTEmotionRegressor()
 
     if args.train or args.use_example:
         # Training mode
@@ -386,26 +401,42 @@ def main():
             df = pd.read_csv(args.train)
 
         print(f"Dataset size: {len(df)}")
-        print(f"Label distribution:\n{df[args.label_col].value_counts()}")
+        print(f"Score statistics:")
+        print(f"  Mean: {df[args.label_col].mean():.3f}")
+        print(f"  Std:  {df[args.label_col].std():.3f}")
+        print(f"  Min:  {df[args.label_col].min():.3f}")
+        print(f"  Max:  {df[args.label_col].max():.3f}")
 
-        train_loader, val_loader = classifier.prepare_data(
+        train_loader, val_loader = regressor.prepare_data(
             df, text_col=args.text_col, label_col=args.label_col
         )
 
         print(f"\nTraining on {device}...")
-        classifier.train(train_loader, val_loader, epochs=args.epochs)
+        regressor.train(train_loader, val_loader, epochs=args.epochs)
 
-        classifier.save_model(args.model)
+        regressor.save_model(args.model)
 
-        # Test prediction
-        test_text = "This is absolutely OUTRAGEOUS behavior!"
-        pred = classifier.predict(test_text)
-        print(f"\nTest prediction for '{test_text}': {pred}")
+        # Test predictions
+        print("\n" + "=" * 50)
+        print("Test Predictions:")
+        print("=" * 50)
+
+        test_texts = [
+            "This is absolutely OUTRAGEOUS behavior!",
+            "I disagree with the vote today.",
+            "Just attended a committee meeting."
+        ]
+
+        for text in test_texts:
+            score = regressor.predict(text)
+            print(f"'{text}'")
+            print(f"  → Extremeness score: {score}")
+            print()
 
     elif args.predict:
         # Prediction mode
-        classifier.load_model(args.model)
-        prediction = classifier.predict(args.predict)
+        regressor.load_model(args.model)
+        prediction = regressor.predict(args.predict)
         print(f"Emotion extremeness score: {prediction}")
 
     else:
@@ -414,6 +445,10 @@ def main():
         print("  Train with example data: python bert_emotion_classifier.py --use-example")
         print("  Train with your data: python bert_emotion_classifier.py --train data.csv")
         print("  Predict: python bert_emotion_classifier.py --predict 'your text' --model ./emotion_model")
+        print("\nExpected CSV format:")
+        print("  text,extremeness_score")
+        print('  "Just posted a report...",0.12')
+        print('  "This is OUTRAGEOUS!",0.95')
 
 
 if __name__ == '__main__':
