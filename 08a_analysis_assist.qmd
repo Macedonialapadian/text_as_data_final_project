@@ -1,0 +1,240 @@
+---
+title: "final_project"
+author: "chris"
+format: html
+editor: visual
+---
+
+must being used after running the first analysis qmd to load packages and data
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# 1. Function to extract the coefficient for 'score_centered'
+get_score_effect <- function(model, label) {
+  summ <- summary(model)
+  # Extract the row for score_centered
+  coef_row <- summ$coefficients["score_centered", ]
+  
+  data.frame(
+    Metric = label,
+    Estimate = coef_row["Estimate"],
+    Std_Error = coef_row["Std. Error"],
+    # Calculate 95% Confidence Interval
+    CI_Lower = coef_row["Estimate"] - 1.96 * coef_row["Std. Error"],
+    CI_Upper = coef_row["Estimate"] + 1.96 * coef_row["Std. Error"]
+  )
+}
+
+# 2. Combine data from all 4 models
+plot_data <- bind_rows(
+  get_score_effect(model_b1, "Likes"),
+  get_score_effect(model_b2, "Comments"),
+  get_score_effect(model_b3, "Retweets"),
+  get_score_effect(model_b4, "Views")
+)
+
+# 3. Create the Plot
+ggplot(plot_data, aes(x = Estimate, y = reorder(Metric, Estimate))) +
+  # Add Error Bars (95% CI)
+  geom_errorbarh(aes(xmin = CI_Lower, xmax = CI_Upper), height = 0.2, color = "red") +
+  # Add the Point Estimates
+  geom_point(size = 4, color = "black") +
+  # Add labels for the exact values
+  geom_text(aes(label = round(Estimate, 4)), vjust = -1.5, size = 3.5, color = "blue") +
+  # Add a vertical line at 0 (null hypothesis)
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray") +
+  # Aesthetic tweaks
+  labs(
+    title = "Effect of BWS Score on Public Interactions",
+    subtitle = "Coefficient of score_centered with 95% Confidence Intervals",
+    x = "Effect Size (Approx. % Increase per 1 Unit Score)",
+    y = "Interaction Metric"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.y = element_text(size = 12, face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+```
+
+```{r}
+models_list <- list(
+  "Likes"    = model_b1,
+  "Comments" = model_b2,
+  "Retweets" = model_b3,
+  "Views"    = model_b4
+)
+
+# 2. Extract Party Coefficients (Main Effects Only)
+plot_data_party_main <- map_dfr(names(models_list), function(metric_name) {
+  
+  model <- models_list[[metric_name]]
+  
+  tidy(model, conf.int = TRUE) %>%
+    # Filter for "party" terms BUT exclude interaction terms (those with ":")
+    # This ensures we get the main difference at the average score
+    filter(str_detect(term, "party") & !str_detect(term, ":")) %>%
+    mutate(
+      Metric = metric_name,
+      # Clean variable names: "partyRepublican" -> "Republican"
+      party = str_remove(term, "party")
+    ) %>%
+    select(Metric, party, estimate, conf.low, conf.high)
+})
+
+# 3. Add Reference Group "Democrat" (Coefficient = 0)
+reference_data <- data.frame(
+  Metric = rep(names(models_list), each = 1),
+  party = "Democrat",
+  estimate = 0,
+  conf.low = 0,
+  conf.high = 0
+)
+
+# 4. Combine and Calculate Percentage Change
+plot_data_final <- bind_rows(plot_data_party_main, reference_data) %>%
+  mutate(
+    # Convert Log scale to Percentage Change
+    Pct_Change = (exp(estimate) - 1) * 100,
+    Conf_Low_Pct = (exp(conf.low) - 1) * 100,
+    Conf_High_Pct = (exp(conf.high) - 1) * 100,
+    
+    # Set factor levels for ordering
+    party = factor(party, levels = c("Republican", "Other", "Democrat")),
+    Metric = factor(Metric, levels = c("Likes", "Comments", "Retweets", "Views"))
+  )
+
+# 5. Plotting
+ggplot(plot_data_final, aes(x = Pct_Change, y = party, color = party)) +
+  
+  # Facet by the 4 metrics
+  facet_wrap(~Metric, scales = "free_x", ncol = 2) +
+  
+  # Reference Line (Democrat baseline)
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray60") +
+  
+  # Lollipop Stick
+  geom_segment(aes(x = 0, xend = Pct_Change, y = party, yend = party), 
+               linetype = "dotted", size = 0.6) +
+  
+  # Lollipop Head (Point & Error Bar)
+  geom_pointrange(aes(xmin = Conf_Low_Pct, xmax = Conf_High_Pct), 
+                  size = 0.8, fatten = 3) +
+  
+  # Political Colors
+  scale_color_manual(values = c("Democrat" = "#2E86C1",   # Blue
+                                "Republican" = "#E74C3C", # Red
+                                "Other" = "#27AE60")) +   # Green/Gray
+  
+  # Theme and Labels
+  theme_bw() +
+  labs(
+    title = "Party Differences in Baseline Engagement",
+    subtitle = "Percentage difference compared to Democrats (at average BWS score)",
+    x = "Percentage Difference vs. Democrat (%)",
+    y = NULL
+  ) +
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    axis.text.y = element_text(face = "bold", size = 10),
+    legend.position = "none",
+    panel.grid.major.y = element_blank()
+  )
+```
+
+```{r}
+models_list <- list(
+  "Likes"    = model_b1,
+  "Comments" = model_b2,
+  "Retweets" = model_b3,
+  "Views"    = model_b4
+)
+
+plot_data_race_main <- map_dfr(names(models_list), function(metric_name) {
+  
+  model <- models_list[[metric_name]]
+  
+  tidy(model, conf.int = TRUE) %>%
+    filter(str_detect(term, "race")) %>%
+    mutate(
+      Metric = metric_name,
+      race = str_remove(term, "race")
+    ) %>%
+    select(Metric, race, estimate, conf.low, conf.high)
+})
+
+reference_data <- data.frame(
+  Metric = rep(names(models_list), each = 1),
+  race = "White",
+  estimate = 0,
+  conf.low = 0,
+  conf.high = 0
+)
+
+plot_data_final <- bind_rows(plot_data_race_main, reference_data) %>%
+  mutate(
+    Pct_Change = (exp(estimate) - 1) * 100,
+    Conf_Low_Pct = (exp(conf.low) - 1) * 100,
+    Conf_High_Pct = (exp(conf.high) - 1) * 100,
+    
+    race = factor(race, levels = c("Asian American", "Latino", "Black", "Other", "White")),
+    Metric = factor(Metric, levels = c("Likes", "Comments", "Retweets", "Views"))
+  )
+
+ggplot(plot_data_final, aes(x = Pct_Change, y = race, color = race)) +
+  
+  facet_wrap(~Metric, scales = "free_x", ncol = 2) +
+  
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray60") +
+  
+  geom_segment(aes(x = 0, xend = Pct_Change, y = race, yend = race), 
+               linetype = "dotted", size = 0.6) +
+  geom_pointrange(aes(xmin = Conf_Low_Pct, xmax = Conf_High_Pct), 
+                  size = 0.8, fatten = 3) +
+  scale_color_manual(values = c("White" = "#2E86C1", 
+                                "Black" = "#E74C3C", 
+                                "Latino" = "#F39C12", 
+                                "Asian American" = "#8E44AD", 
+                                "Other" = "gray50")) +
+  theme_bw() +
+  labs(
+    title = "Racial Differences in Baseline Engagement",
+    subtitle = "Percentage difference in engagement compared to White politicians (Controlled for intensity & followers)",
+    x = "Percentage Difference vs. White (%)",
+    y = NULL
+  ) +
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    axis.text.y = element_text(face = "bold", size = 10),
+    legend.position = "none",
+    panel.grid.major.y = element_blank()
+  )
+```
+
+```{r}
+plot_data <- tidy(model_a, conf.int = TRUE) %>%
+  filter(term != "(Intercept)") %>%
+  arrange(estimate) %>%
+  mutate(term = factor(term, levels = term))
+
+ggplot(plot_data, aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black") +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), 
+                 height = 0.2, color = "gray50") +
+  geom_point(size = 3, color = "#2E86C1") +
+  theme_bw() +
+  labs(
+    title = "Predictors of Emotional Intensity (BWS Score)",
+    subtitle = "Change in intensity score (0-100) associated with each factor",
+    x = "Change in BWS Score (Points)",
+    y = NULL
+  ) +
+  theme(
+    axis.text.y = element_text(size = 11, face = "bold"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```

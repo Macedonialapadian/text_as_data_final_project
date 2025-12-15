@@ -1,0 +1,109 @@
+---
+title: "final_project"
+author: "chris"
+format: html
+editor: visual
+---
+
+```{r}
+library(pacman)
+p_load(tidyverse,ggplot2,car,lme4,lmerTest,broom,scales)
+```
+
+```{r}
+dta <- read_csv("data/cleaned/the_dataset.csv",
+                col_types = cols(url = col_character()))
+
+url_officer <- read_csv("data/cleaned/urls_official_id.csv",
+                        col_types = cols(url = col_character()))
+
+officer_data<-read_csv("data/raw/official_data.csv")
+
+```
+
+```{r}
+# origianl score is 0-1, rescale it to 1-100
+dta$predicted_bws_score<-dta$predicted_bws_score*100
+
+dta<-left_join(dta, officer_data,by="official_id")
+
+# there are data that have problematic date, due to being retweeted but lost the retweet time. remove them.
+dta$month<-month(dta$datetime)
+dta <- dta %>%
+  filter(!month %in% c(1, 2, 3, 4))
+dta$year<-year(dta$datetime)
+dta <- dta %>%
+  filter(year==2024)
+
+# some races' and parties' number is too small and not our target for analysis, include them into 'other' to reduce noise.
+dta <- dta %>%
+  mutate(
+    race = case_when(
+      race == "White" ~ "White",
+      race == "Black" ~ "Black",
+      race == "Latino" ~ "Latino",
+      race == "Asian American" ~ "Asian American",
+      TRUE ~ "Other"
+    ),
+    race = factor(race, levels = c("White", "Black","Latino","Asian American","Other")),
+
+    party = case_when(
+      party == "Democratic" ~ "Democratic",
+      party == "Republican" ~ "Republican",
+      TRUE ~ "Other"
+    ),
+    party = factor(party, levels = c("Democratic", "Republican", "Other"))
+  )
+```
+
+```{r}
+# create variable indicating if the week is campaign_period.
+dta <- dta %>%
+  mutate(
+    week_num = as.numeric(sub(".*-", "", calendar_week)),
+    campaign_period = ifelse(week_num >= 42 & week_num <= 49, 
+                             "Campaign Weeks", 
+                             "Normal Weeks"),
+    campaign_period = factor(campaign_period, levels = c("Campaign Weeks", "Normal Weeks"))
+  )
+
+table(dta$campaign_period)
+```
+
+```{r}
+model_a <- lm(predicted_bws_score ~ gender + party*race + log(num_follower + 1)+ campaign_period, 
+              data = dta)
+summary(model_a)
+```
+
+```{r}
+dta$score_centered <- dta$predicted_bws_score - mean(dta$predicted_bws_score, na.rm = TRUE)
+
+model_b1 <- lm(log(likes + 1) ~ score_centered * race + 
+                 score_centered * gender + 
+                 score_centered * party + 
+                 log(num_follower + 1), 
+               data = dta)
+summary(model_b1)
+
+model_b2 <- lm(log(comments + 1) ~ score_centered * race + 
+                 score_centered * gender + 
+                 score_centered * party + 
+                 log(num_follower + 1), 
+               data = dta)
+summary(model_b2)
+
+model_b3 <- lm(log(retweets + 1) ~ score_centered * race + 
+                 score_centered * gender + 
+                 score_centered * party + 
+                 log(num_follower + 1), 
+               data = dta)
+summary(model_b3)
+
+model_b4 <- lm(log(views + 1) ~ score_centered * race + 
+                 score_centered * gender + 
+                 score_centered * party + 
+                 log(num_follower + 1), 
+               data = dta)
+summary(model_b4)
+```

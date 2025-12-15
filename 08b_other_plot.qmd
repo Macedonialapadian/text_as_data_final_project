@@ -1,0 +1,49 @@
+---
+title: "final_project"
+author: "chris"
+format: html
+editor: visual
+---
+
+must being used after running the first analysis qmd to load packages and data
+
+```{r}
+dta %>%
+  mutate(category = cut(
+    likes, 
+    breaks = c(-Inf, 10, 100, 1000, 10000,100000,Inf),
+    labels = c("0-10", "11-100", "101-1000","1001-10000","10001-100000", ">100000"))) %>%
+  ggplot(aes(x = likes)) +
+  geom_histogram(fill = "#69b3a2", color = "white", bins = 30) +
+  theme_minimal() +
+  facet_wrap(~category, scales = "free") +
+  labs(title = "Distribution of Likes")
+```
+
+```{r}
+ggplot(dta, aes(x = predicted_bws_score)) +
+  geom_histogram(
+    fill = "#69b3a2",
+    color = "white",
+    bins = 50
+  ) +
+  theme_minimal() +
+  labs(
+    title = "Distribution of Emotional Intensity Scores",
+    x = "Predicted BWS Score (1-100)",
+    y = "Frequency (Count)"
+  )
+```
+
+```{r}
+tweet_not_found<-anti_join(url_officer,dta,by="url")
+
+ggplot(tweet_not_found, aes(x = calendar_week)) +
+  geom_histogram(
+    stat="count",
+    fill = "#69b3a2",
+    color = "white"
+  ) +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```

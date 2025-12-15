@@ -1,0 +1,40 @@
+---
+title: "final_project"
+author: "chris"
+format: html
+editor: visual
+---
+
+```{r}
+1 + 1
+```
+
+$$
+\text{BWS Score}_j = \frac{(\text{Number of times chosen as Best}) - (\text{Number of times chosen as Worst})}{\text{Total number of times the item appeared}}
+$$
+
+$$
+\log(\text{Likes}_i + 1) = \beta_0 + \beta_1 (\text{Emotional Intensity}_i) + \beta_2 (\text{Party}_i) + \beta_3 (\text{Gender}_i) + \beta_4 (\text{Race}_i) + \epsilon_i
+$$
+
+$$
+\log(\text{Likes}_i + 1) = \beta_0 + \beta_1 (\text{Emotional Intensity}_i) + \beta_2 (\text{Gender}_i) + \beta_3 (\text{Race}_i) + \epsilon_i
+$$
+
+$$
+\begin{aligned}
+\log(\text{Likes} + 1) &= \beta_0 \\
+&+ \beta_1 \cdot \text{Intensity} \\
+&+ \beta_2 \cdot \log(\text{Followers} + 1) \\
+&+ \beta_3 \cdot \text{Party} \\
+&+ \beta_4 \cdot \text{Race} \\
+&+ \beta_5 \cdot \text{Gender} \\
+&+ \beta_6 \cdot (\text{Intensity} \times \text{Race}) \\
+&+ \beta_7 \cdot (\text{Intensity} \times \text{Gender}) \\
+&+ \epsilon
+\end{aligned}
+$$
+
+$$
+\text{Intensity} = \beta_0 + \beta_1 \cdot \text{Gender} + \beta_2 \cdot \text{Party} + \beta_3 \cdot \text{Race} + \beta_4 \cdot \log(\text{Followers} + 1) + \epsilon
+$$

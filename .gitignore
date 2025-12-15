@@ -1,1 +1,8 @@
 *.csv
+.env
+backup_files/
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
+scraper/

@@ -1,0 +1,261 @@
+---
+title: "final_project"
+author: "chris"
+format: html
+editor: visual
+---
+
+```{r}
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(
+  tidyverse,
+  stm,
+  lubridate,
+  quanteda,
+  reshape2,  
+  tidytext, 
+  ggpubr,    
+  knitr,     
+  igraph,
+  stringr    # Required for label wrapping
+)
+
+# ==============================================================================
+# 1. SETUP & LOAD POOLED DATA
+# ==============================================================================
+
+# NOTE: Since this is a new model run on pooled data, the topics have likely 
+# changed order. I have set generic labels below. 
+# Run the script, look at "top_word_single.png", and then update these labels.
+my_topic_labels <- c(
+  "Biden Withdrawal & Support for Harris",             # Topic 1
+  "Criticism of Gov. Walz & State Executives",         # Topic 2
+  "Climate Skepticism",# Topic 3
+  "Trump Assassination Attempts & Rhetoric",           # Topic 4
+  "Utah Politics (Lyman vs. Cox)",# Topic 5
+  "Voter Registration & Election Mobilization",        # Topic 6
+  "Israel-Hamas War & Border Security Criticism",      # Topic 7 (Israel/Hezbollah focus)
+  "Legislative Congratulations & Public Honors",       # Topic 8
+  "Reproductive Rights & Abortion Policy",             # Topic 9
+  "Hispanic Heritage Month & Community Events",        # Topic 10
+  "General Commentary & Casual Conversation",          # Topic 11
+  "Hurricane Helene & Emergency Response",             # Topic 12
+  "State Budget, Energy & Housing Policy",             # Topic 13
+  "California Policy, Crime & Immigration"             # Topic 14
+)
+
+# Load the POOLED data saved from your pooling script
+out <- readRDS("models/R_topic_model/inputs/out_pool.rds")
+dta <- readRDS("models/R_topic_model/inputs/dta_pool.rds")
+
+# Extract metadata
+meta <- out$meta
+
+# ==============================================================================
+# 2. DEFINE ANALYSIS FUNCTION
+# ==============================================================================
+
+analyze_topic_model <- function(topic_models_list, estimates_list) {
+  
+  for (i in seq_along(topic_models_list)) {
+    topic_model <- topic_models_list[[i]]
+    
+    # Check if estimate exists for this model
+    topic_key <- names(topic_models_list)[i]
+    if (!topic_key %in% names(estimates_list)) {
+      warning(paste("No estimate found for", topic_key, "- skipping."))
+      next
+    }
+    estimate_model <- estimates_list[[topic_key]]
+    
+    topic_number <- topic_model$settings$dim$K
+    print(paste("Analyzing Model with K =", topic_number))
+    
+    # --- UPDATED PATH: Save into 'plots/pooled/model_K...' ---
+    output_dir <- paste0("plots/stm/model_K", topic_number, "/")
+    dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+    print(paste("Saving results to:", output_dir))
+    
+    # 1. Label Topics (Console Output)
+    top_words <- labelTopics(topic_model, topics = c(1:topic_number), n = 10, frexweight = 0.5)
+    
+    # 2. Topic Proportions (Gamma)
+    gamma <- tidy(topic_model, matrix = "gamma", document_names = rownames(meta)) %>%
+      group_by(topic) %>%
+      summarise(gamma = mean(gamma)) %>%
+      arrange(desc(gamma)) %>%
+      mutate(topic_label = paste0("Topic ", topic),
+             topic_label = reorder(topic_label, gamma))
+    
+    # 3. Find Thoughts 
+    thought <- findThoughts(topic_model, texts = out$meta$content, n = 15)
+    
+    # 4. Dominant Topic
+    dominant_topic <- data.frame(dominant_topic = apply(topic_model$theta, 1, which.max))
+    
+    # 5. Output Text Report
+    sink(paste0(output_dir, "analysis.txt"), split = TRUE)
+    print("--- Summary ---")
+    summary(topic_model, frexweight = 0.5)
+    print("--- Gamma (Expected Proportions) ---")
+    print(kable(gamma, digits = 3, col.names = c("Topic", "Mean Gamma", "Label")))
+    print("--- Dominant Topic Counts ---")
+    print(table(dominant_topic))
+    print("--- Top Words ---")
+    print(top_words)
+    print("--- Top Thoughts ---")
+    print(thought)
+    sink()
+    
+    # 6. Plot: Top Word Proportions (Single Chart)
+    top_words_1 <- tidy(topic_model, matrix = "beta") %>%
+      group_by(topic) %>%
+      slice_max(beta, n = 1) %>%
+      arrange(topic, -beta)
+    
+    p1 <- ggplot(top_words_1, aes(x = beta, y = factor(my_topic_labels[topic]))) +
+      geom_col(fill = "gray70") +
+      geom_text(aes(label = term), hjust = 0, size = 4) +
+      theme_minimal() +
+      xlim(0, max(top_words_1$beta) + 0.05) +
+      labs(title = paste0("Top Words (K=", topic_number, ")"), x = "Beta", y = "Topic")
+    
+    ggsave(paste0(output_dir, "top_word_single.png"), plot = p1, bg="white")
+    
+    # 7. Plot: Top Words Bar Charts (Facet) with WRAPPED LABELS
+    max_beta <- tidy(topic_model, matrix = "beta") %>%
+      filter(beta > .001) %>%
+      summarise(max = max(beta)) %>% pull(max)
+    
+    # Wrap text at 20 characters so it fits in the box
+    my_topic_labels_wrapped <- stringr::str_wrap(my_topic_labels, width = 20)
+    topic_labels_map <- setNames(my_topic_labels_wrapped, 1:length(my_topic_labels))
+    
+    p2 <- tidy(topic_model, matrix = "beta") %>%
+      group_by(topic) %>%
+      slice_max(beta, n = 10) %>%
+      ungroup() %>%
+      mutate(term = reorder_within(term, beta, topic)) %>%
+      ggplot(aes(x = term, y = beta, fill = factor(topic))) + 
+      geom_col(show.legend = FALSE) +
+      scale_y_continuous(limits = c(0, max_beta)) +
+      facet_wrap(~ topic, 
+                 scales = "free_y", 
+                 labeller = as_labeller(topic_labels_map) 
+      ) +
+      coord_flip() +
+      scale_x_reordered() +
+      labs(x = NULL, y = "Beta") +
+      theme_pubr() +
+      theme(
+        axis.text.y = element_text(size = 14),
+        strip.text = element_text(size = 9, face = "bold")
+      )
+    
+    ggsave(paste0(output_dir, "topwords_facet.png"), 
+           plot = p2, width = 14, height = 12, bg="white")
+    
+    # 8. Plot: Topic Correlations
+    png(paste0(output_dir, "corr_network_low.png"), width = 800, height = 600)
+    try(plot(topicCorr(topic_model, cutoff = 0.03)))
+    dev.off()
+    
+    png(paste0(output_dir, "corr_network_middle.png"), width = 800, height = 600)
+    try(plot(topicCorr(topic_model, cutoff = 0.14)))
+    dev.off()
+    
+    png(paste0(output_dir, "corr_network_high.png"), width = 800, height = 600)
+    try(plot(topicCorr(topic_model, cutoff = 0.20)))
+    dev.off()
+    
+    png(paste0(output_dir, "race_party_combo_effect.png"), width = 4500, height = 3500, res = 300)
+    
+    # SIGNIFICANTLY Increase LEFT margin (second number) to fit long labels like "Republican_Asian American"
+    # c(bottom, left, top, right)
+    par(mfrow = c(ceiling(topic_number / 4), 4), mar = c(4, 14, 2, 1)) 
+    
+    for (k in 1:topic_number) {
+      plot.estimateEffect(
+        estimate_model,
+        covariate = "race_party_combo",  # <--- CHANGE THIS to your new variable name
+        method = "point",
+        topics = c(k),
+        main = my_topic_labels[k],
+        xlab = "Topic Proportion",
+        xlim = c(0, 0.45)  # Adjusted range to fit potential variations
+      )
+    }
+    dev.off()
+    
+    
+    # 10. Plot: Prevalence (Date)
+    png(paste0(output_dir, "prevalence.png"), width = 4000, height = 3000, res = 300)
+    
+    common_ylim <- c(0, 0.3)
+    
+    par(mfrow = c(ceiling(topic_number / 4), 4), mar = c(4, 4, 2, 1))
+    
+    axis_dates <- seq(from = min(as.Date(meta$datetime)), 
+                      to = max(as.Date(meta$datetime)), 
+                      by = "month")
+    
+    for (k in 1:topic_number) {
+      plot.estimateEffect(
+        estimate_model,
+        covariate = "date_numeric",
+        method = "continuous",
+        topics = c(k),
+        main = my_topic_labels[k],
+        xlab = "Time",
+        linecol = "blue",
+        xaxt = "n",
+        ylim = common_ylim  # Set Y limit
+      )
+      axis(1, 
+           at = as.numeric(axis_dates), 
+           labels = format(axis_dates, "%Y-%m"), 
+           cex.axis = 0.8
+      )
+    }
+    dev.off()
+    
+    
+    png(paste0(output_dir, "bws_score_effect.png"), width = 4000, height = 3000, res = 300)
+    common_ylim <- c(0, 0.4)
+    
+    par(mfrow = c(ceiling(topic_number / 4), 4), mar = c(4, 4, 2, 1))
+    
+    for (k in 1:topic_number) {
+      plot.estimateEffect(
+        estimate_model,
+        covariate = "predicted_bws_score",
+        method = "continuous",
+        topics = c(k),
+        main = my_topic_labels[k],
+        xlab = "BWS Score",
+        ylab = "Topic Proportion",
+        linecol = "red",
+        printlegend = FALSE,
+        ylim = common_ylim  # Set Y limit
+      )
+    }
+    dev.off()
+  }
+}
+
+# ==============================================================================
+# 3. EXECUTE
+# ==============================================================================
+
+# Load the POOLED models
+topic_model <- readRDS("models/R_topic_model/stm_topic_model_16_pool.rds")
+estimated_model <- readRDS("models/R_topic_model/stm_topic_model_estimated_16_pool.rds")
+
+# Prepare lists
+my_models <- list(pool_model = topic_model)
+my_estimates <- list(pool_model = estimated_model)
+
+# Run Analysis
+analyze_topic_model(my_models, my_estimates)
+```
