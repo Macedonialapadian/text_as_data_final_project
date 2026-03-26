@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-INPUT_PATH = "data/processed/bws_text_data.csv"
-OUTPUT_PATH = "data/processed/bws_text_data_openai_labelled.csv"
+INPUT_PATH = "../data/processed/bws_text_data.csv"
+OUTPUT_PATH = "../data/processed/bws_text_data_openai_labelled.csv"
 SAVE_INTERVAL = 500
 MAX_CONCURRENT = 15
 TIMEOUT_SECONDS = 60

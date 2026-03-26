@@ -47,8 +47,8 @@ my_topic_labels <- c(
   "State Legislative Battles & Intra-Party Conflict"     # Topic 16
 )
 # Load the POOLED data saved from your pooling script
-out <- readRDS("models/R_topic_model/inputs/out_pool.rds")
-dta <- readRDS("models/R_topic_model/inputs/dta_pool.rds")
+out <- readRDS("../models/R_topic_model/inputs/out_pool.rds")
+dta <- readRDS("../models/R_topic_model/inputs/dta_pool.rds")
 
 # Extract metadata
 meta <- out$meta
@@ -74,7 +74,7 @@ analyze_topic_model <- function(topic_models_list, estimates_list) {
     print(paste("Analyzing Model with K =", topic_number))
     
     # --- UPDATED PATH: Save into 'plots/pooled/model_K...' ---
-    output_dir <- paste0("plots/stm/model_K", topic_number, "/")
+    output_dir <- paste0("../plots/stm/model_K", topic_number, "/")
     dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
     print(paste("Saving results to:", output_dir))
     
@@ -267,8 +267,8 @@ analyze_topic_model <- function(topic_models_list, estimates_list) {
 # ==============================================================================
 
 # Load the POOLED models
-topic_model <- readRDS("models/R_topic_model/stm_topic_model_16_pool.rds")
-estimated_model <- readRDS("models/R_topic_model/stm_topic_model_estimated_16_pool.rds")
+topic_model <- readRDS("../models/R_topic_model/stm_topic_model_16_pool.rds")
+estimated_model <- readRDS("../models/R_topic_model/stm_topic_model_estimated_16_pool.rds")
 
 # Prepare lists
 my_models <- list(pool_model = topic_model)

@@ -1,7 +1,7 @@
 import pandas as pd
 
-INPUT_FILE = "data/processed/bws_scores.csv"
-OUTPUT_FILE = "data/processed/bws_final_dataset.csv"
+INPUT_FILE = "../data/processed/bws_scores.csv"
+OUTPUT_FILE = "../data/processed/bws_final_dataset.csv"
 
 df = pd.read_csv(INPUT_FILE)
     

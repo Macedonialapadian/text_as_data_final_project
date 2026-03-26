@@ -5,8 +5,8 @@ import numpy as np
 from collections import defaultdict
 import os
 
-INPUT_FILE = "data/processed/bws_text_data_openai_labelled.csv"
-OUTPUT_FILE = "data/processed/bws_scores.csv"
+INPUT_FILE = "../data/processed/bws_text_data_openai_labelled.csv"
+OUTPUT_FILE = "../data/processed/bws_scores.csv"
 
 labeled_df = pd.read_csv(INPUT_FILE)
     

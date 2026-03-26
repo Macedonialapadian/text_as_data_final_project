@@ -7,8 +7,8 @@ library(parallel) # For detecting cores
 # --- 1. Load and Clean Data (Same as 09_stm_pool.R) ---
 
 # Load data
-dta <- read_csv("data/cleaned/the_dataset.csv")
-officer_data <- read_csv("data/raw/official_data.csv")
+dta <- read_csv("../data/cleaned/the_dataset.csv")
+officer_data <- read_csv("../data/raw/official_data.csv")
 
 # Join and filter dates
 dta$month <- month(dta$datetime)
@@ -110,7 +110,7 @@ select <- searchK(
 )
 
 # Save the heavy computation result immediately
-saveRDS(select, "models/R_topic_model/select_k_results.rds")
+saveRDS(select, "../models/R_topic_model/select_k_results.rds")
 
 # --- 5. Plotting Results ---
 
@@ -134,6 +134,6 @@ p <- ggplot(k_metrics, aes(x = SemanticCoherence, y = Exclusivity, label = K)) +
     y = "Exclusivity (Higher is better)"
   )
 
-ggsave("models/R_topic_model/k_selection_plot.png", plot = p, width = 8, height = 6)
+ggsave("../models/R_topic_model/k_selection_plot.png", plot = p, width = 8, height = 6)
 
 print(p)

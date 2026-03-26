@@ -2,8 +2,8 @@ import pandas as pd
 import os
 import glob
 
-RAW_SCRAPED_DATA_PATHS = "data/scraper_result_data/raw/2024"
-COMBINED_DATA_PATH = "data/scraper_result_data/combined/2024"
+RAW_SCRAPED_DATA_PATHS = "../data/scraper_result_data/raw/2024"
+COMBINED_DATA_PATH = "../data/scraper_result_data/combined/2024"
 
 
 if not os.path.exists(COMBINED_DATA_PATH):

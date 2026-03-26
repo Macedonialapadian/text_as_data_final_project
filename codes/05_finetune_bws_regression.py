@@ -13,8 +13,8 @@ import datetime
 import random
 import os
 
-DATA_PATH = "data/processed/bws_final_dataset.csv"
-OUTPUT_DIR = "models/bws_regressor_final"
+DATA_PATH = "../data/processed/bws_final_dataset.csv"
+OUTPUT_DIR = "../models/bws_regressor_final"
 MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment-latest"
 MAX_LEN = 128
 BATCH_SIZE = 16

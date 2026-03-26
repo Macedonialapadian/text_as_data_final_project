@@ -11,13 +11,13 @@ p_load(tidyverse,ggplot2,car,lme4,lmerTest,broom,scales)
 ```
 
 ```{r}
-dta <- read_csv("data/cleaned/the_dataset.csv",
+dta <- read_csv("../data/cleaned/the_dataset.csv",
                 col_types = cols(url = col_character()))
 
-url_officer <- read_csv("data/cleaned/urls_official_id.csv",
+url_officer <- read_csv("../data/cleaned/urls_official_id.csv",
                         col_types = cols(url = col_character()))
 
-officer_data<-read_csv("data/raw/official_data.csv")
+officer_data<-read_csv("../data/raw/official_data.csv")
 
 ```
 

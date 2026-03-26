@@ -6,9 +6,9 @@ from tqdm import tqdm
 import os
 import numpy as np
 
-MODEL_DIR = "models/bws_regressor_final"
-INPUT_CSV = "data/scraper_result_data/combined/2024/X_2024_combined.csv"
-OUTPUT_CSV = "data/processed/final_bws_dataset.csv"
+MODEL_DIR = "../models/bws_regressor_final"
+INPUT_CSV = "../data/scraper_result_data/combined/2024/X_2024_combined.csv"
+OUTPUT_CSV = "../data/processed/final_bws_dataset.csv"
 BATCH_SIZE = 32
 MAX_LEN = 128
 

@@ -1,8 +1,8 @@
 import pandas as pd
 
-df = pd.read_csv("data/processed/final_bws_dataset.csv", dtype={'url': str})
+df = pd.read_csv("../data/processed/final_bws_dataset.csv", dtype={'url': str})
 df_full = pd.read_csv(
-    "data/scraper_material_data/x_2024.csv", dtype={"urls": str, "official_id": str}
+    "../data/scraper_material_data/x_2024.csv", dtype={"urls": str, "official_id": str}
 )
 
 df_urls_official_id = pd.DataFrame(columns=["url", "official_id"])
@@ -21,5 +21,5 @@ df["likes"] = df["likes"].fillna(0)
 df = df.drop(columns=["quotes"])
 df["views"] = df["views"].fillna(0)
 
-df.to_csv("data/cleaned/the_dataset.csv", index=False)
-df_urls_official_id.to_csv("data/cleaned/urls_official_id.csv", index=False)
+df.to_csv("../data/cleaned/the_dataset.csv", index=False)
+df_urls_official_id.to_csv("../data/cleaned/urls_official_id.csv", index=False)

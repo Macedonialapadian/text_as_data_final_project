@@ -10,8 +10,8 @@ there is also line breaks in the "content", so i add buffer to store incomplete 
 If the script is not able to find the last 5 elements, then it means the line is broken.
 Then it will attacth the next line to the buffer, until it finds the last 5 elements.
 """
-RAW_SCRAPED_DATA_PATHS = "data/scraper_result_data/raw/2024"
-COMBINED_DATA_PATH = "data/scraper_result_data/combined/2024/X_2024_combined.csv"
+RAW_SCRAPED_DATA_PATHS = "../data/scraper_result_data/raw/2024"
+COMBINED_DATA_PATH = "../data/scraper_result_data/combined/2024/X_2024_combined.csv"
 
 def parse_broken_csv(file_path):
     data = []

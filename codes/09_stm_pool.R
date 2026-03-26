@@ -4,8 +4,8 @@ library(lubridate)
 library(quanteda)
 library(parallel)
 
-dta <- read_csv("data/cleaned/the_dataset.csv")
-officer_data <- read_csv("data/raw/official_data.csv")
+dta <- read_csv("../data/cleaned/the_dataset.csv")
+officer_data <- read_csv("../data/raw/official_data.csv")
 
 dta$month <- month(dta$datetime)
 dta <- left_join(dta, officer_data, by="official_id")
@@ -96,10 +96,10 @@ estimate_model <- estimateEffect(
   uncertainty = "Global"
 )
 
-dir.create("models/R_topic_model", recursive = TRUE, showWarnings = FALSE)
-saveRDS(topic_model, "models/R_topic_model/stm_topic_model_16_pool.rds")
-saveRDS(estimate_model, "models/R_topic_model/stm_topic_model_estimated_16_pool.rds")
+dir.create("../models/R_topic_model", recursive = TRUE, showWarnings = FALSE)
+saveRDS(topic_model, "../models/R_topic_model/stm_topic_model_16_pool.rds")
+saveRDS(estimate_model, "../models/R_topic_model/stm_topic_model_estimated_16_pool.rds")
 
-dir.create("models/inputs", recursive = TRUE, showWarnings = FALSE)
-saveRDS(out, "models/R_topic_model/inputs/out_pool.rds")
-saveRDS(dta, "models/R_topic_model/inputs/dta_pool.rds")
+dir.create("../models/inputs", recursive = TRUE, showWarnings = FALSE)
+saveRDS(out, "../models/R_topic_model/inputs/out_pool.rds")
+saveRDS(dta, "../models/R_topic_model/inputs/dta_pool.rds")

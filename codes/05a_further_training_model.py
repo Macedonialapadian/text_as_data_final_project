@@ -17,9 +17,9 @@ from transformers import (
 ###############################################################################################
 
 MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment-latest" 
-INPUT_CSV = "data/scraper_result_data/combined/2024/X_2024_combined.csv"
-OUTPUT_DIR = "models/bws_further_pretrained"
-TEMP_TEXT_FILE = "data/processed/corpus_for_pretraining.txt"
+INPUT_CSV = "../data/scraper_result_data/combined/2024/X_2024_combined.csv"
+OUTPUT_DIR = "../models/bws_further_pretrained"
+TEMP_TEXT_FILE = "../data/processed/corpus_for_pretraining.txt"
 
 MAX_LEN = 128
 BATCH_SIZE = 16

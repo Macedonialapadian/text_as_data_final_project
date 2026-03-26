@@ -5,8 +5,8 @@ import random
 
 random.seed(114514)
 
-INPUT="data/scraper_result_data/combined/2024/X_2024_combined.csv"
-OUTPUT="data/processed/bws_text_data.csv"
+INPUT="../data/scraper_result_data/combined/2024/X_2024_combined.csv"
+OUTPUT="../data/processed/bws_text_data.csv"
 NUM_TEXT=3000
 GROUP_SIZE=4
 APPEARANCE=15
